@@ -16,3 +16,9 @@ port = 8787
 [[routes]]
 pattern = "api.keeprecord.shop/*"
 zone_name = "keeprecord.shop"
+
+# Google OAuth 环境变量（ secrets 会覆盖这些 ）
+# 使用 `wrangler secret put GOOGLE_CLIENT_ID` 等命令设置实际值
+[vars]
+AUTH_CALLBACK_URL = "https://api.keeprecord.shop"
+PAYPAL_CLIENT_ID = "ARWV59DyNWMBBVpt5r6ICDTbxhzgKtEl78LLXksmgFa42tfH0r0jDYb0Yv1G58bHMq4VbzksTsnd1Uqe"

@@ -5,8 +5,12 @@ import { cors } from 'hono/cors';
 import { goalsRouter } from './routes/goals';
 import { logsRouter } from './routes/logs';
 import { statsRouter } from './routes/stats';
+import { authRouter } from './routes/auth';
+import { usersRouter } from './routes/users';
+import { subscriptionRouter } from './routes/subscription';
+import { paymentRouter } from './routes/payment';
 
-const app = new Hono<{ Bindings: { DB: D1Database } }>();
+const app = new Hono<{ Bindings: { DB: D1Database; GOOGLE_CLIENT_ID: string; GOOGLE_CLIENT_SECRET: string; AUTH_CALLBACK_URL: string; PAYPAL_CLIENT_ID: string; PAYPAL_CLIENT_SECRET: string } }>();
 
 // CORS 中间件
 app.use('/*', cors());
@@ -17,6 +21,10 @@ app.get('/health', (c) => {
 });
 
 // API 路由
+app.route('/api/auth', authRouter);
+app.route('/api/users', usersRouter);
+app.route('/api/subscription', subscriptionRouter);
+app.route('/api/payment', paymentRouter);
 app.route('/api/goals', goalsRouter);
 app.route('/api/logs', logsRouter);
 app.route('/api/stats', statsRouter);

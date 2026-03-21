@@ -2,7 +2,35 @@
 
 import type { Goal, Log, CalendarDay, StreakData } from '../types';
 
-// Goals
+// Goals - 按用户获取所有目标
+export async function getGoalsByUserId(db: D1Database, userId: number): Promise<Goal[]> {
+  const result = await db.prepare(`
+    SELECT 
+      g.id,
+      g.name,
+      g.total_hours,
+      COALESCE(SUM(l.hours), 0) as completed_hours,
+      g.created_at
+    FROM goals g
+    LEFT JOIN logs l ON g.id = l.goal_id
+    WHERE g.user_id = ?
+    GROUP BY g.id
+    ORDER BY g.created_at DESC
+  `).bind(userId).all();
+
+  return result.results.map(row => ({
+    id: row.id,
+    name: row.name,
+    total_hours: row.total_hours,
+    completed_hours: row.completed_hours || 0,
+    progress_percent: row.total_hours > 0
+      ? Number(((row.completed_hours || 0) / row.total_hours * 100).toFixed(1))
+      : 0,
+    created_at: row.created_at
+  }));
+}
+
+// 获取所有目标（保留兼容）
 export async function getAllGoals(db: D1Database): Promise<Goal[]> {
   const result = await db.prepare(`
     SELECT 
@@ -29,19 +57,28 @@ export async function getAllGoals(db: D1Database): Promise<Goal[]> {
   }));
 }
 
-export async function getGoalById(db: D1Database, id: number): Promise<Goal | null> {
-  const goalResult = await db.prepare(`
+export async function getGoalById(db: D1Database, id: number, userId?: number): Promise<Goal | null> {
+  let query = `
     SELECT 
       g.id,
       g.name,
       g.total_hours,
+      g.user_id,
       COALESCE(SUM(l.hours), 0) as completed_hours,
       g.created_at
     FROM goals g
     LEFT JOIN logs l ON g.id = l.goal_id
     WHERE g.id = ?
-    GROUP BY g.id
-  `).bind(id).first();
+  `;
+
+  if (userId !== undefined) {
+    query += ' AND g.user_id = ?';
+  }
+  query += ' GROUP BY g.id';
+
+  const goalResult = userId !== undefined
+    ? await db.prepare(query).bind(id, userId).first()
+    : await db.prepare(query).bind(id).first();
   
   if (!goalResult) return null;
   
@@ -95,10 +132,10 @@ export async function getGoalById(db: D1Database, id: number): Promise<Goal | nu
   };
 }
 
-export async function createGoal(db: D1Database, name: string, totalHours: number): Promise<Goal> {
+export async function createGoal(db: D1Database, userId: number, name: string, totalHours: number): Promise<Goal> {
   const result = await db.prepare(`
-    INSERT INTO goals (name, total_hours) VALUES (?, ?)
-  `).bind(name, totalHours).run();
+    INSERT INTO goals (user_id, name, total_hours) VALUES (?, ?, ?)
+  `).bind(userId, name, totalHours).run();
   
   return {
     id: result.meta.last_row_id,
@@ -110,7 +147,7 @@ export async function createGoal(db: D1Database, name: string, totalHours: numbe
   };
 }
 
-export async function updateGoal(db: D1Database, id: number, name?: string, totalHours?: number): Promise<Goal | null> {
+export async function updateGoal(db: D1Database, id: number, userId: number, name?: string, totalHours?: number): Promise<Goal | null> {
   const updates: string[] = [];
   const binds: any[] = [];
   
@@ -123,22 +160,23 @@ export async function updateGoal(db: D1Database, id: number, name?: string, tota
     binds.push(totalHours);
   }
   
-  if (updates.length === 0) return getGoalById(db, id);
+  if (updates.length === 0) return getGoalById(db, id, userId);
   
   updates.push('updated_at = CURRENT_TIMESTAMP');
   binds.push(id);
+  binds.push(userId);
   
   await db.prepare(`
-    UPDATE goals SET ${updates.join(', ')} WHERE id = ?
+    UPDATE goals SET ${updates.join(', ')} WHERE id = ? AND user_id = ?
   `).bind(...binds).run();
   
-  return getGoalById(db, id);
+  return getGoalById(db, id, userId);
 }
 
-export async function deleteGoal(db: D1Database, id: number): Promise<boolean> {
+export async function deleteGoal(db: D1Database, id: number, userId: number): Promise<boolean> {
   const result = await db.prepare(`
-    DELETE FROM goals WHERE id = ?
-  `).bind(id).run();
+    DELETE FROM goals WHERE id = ? AND user_id = ?
+  `).bind(id, userId).run();
   
   return result.success;
 }
