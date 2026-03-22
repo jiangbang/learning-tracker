@@ -1,14 +1,15 @@
 // Google OAuth 认证路由
 
 import { Hono } from 'hono';
-import { setCookie } from 'hono/cookie';
 import { findOrCreateUser } from '../db/user-queries';
+import { signJwt, verifyJwt } from '../middleware/auth';
 
 interface Env {
   DB: D1Database;
   GOOGLE_CLIENT_ID: string;
   GOOGLE_CLIENT_SECRET: string;
   AUTH_CALLBACK_URL: string;
+  JWT_SECRET: string;
 }
 
 interface TokenResponse {
@@ -24,17 +25,6 @@ interface UserInfo {
   email: string;
   name?: string;
   picture?: string;
-}
-
-interface TokenInfo {
-  azp: string;
-  aud: string;
-  sub: string;
-  scope: string;
-  exp: string;
-  expires_in: string;
-  email: string;
-  email_verified: string;
 }
 
 export const authRouter = new Hono<{ Bindings: Env }>();
@@ -110,7 +100,6 @@ authRouter.get('/callback', async (c) => {
     }
 
     const tokens: TokenResponse = await tokenResponse.json();
-    const { id_token } = tokens;
 
     // 2. 用 access_token 获取用户信息
     const userResponse = await fetch(GOOGLE_USERINFO_URL, {
@@ -132,18 +121,15 @@ authRouter.get('/callback', async (c) => {
     }
     const user = await findOrCreateUser(c.env.DB, userInfo.id, email, name || null, picture || null);
 
-    // 4. 设置 cookie 供后端 API 使用
-    setCookie(c, 'id_token', id_token, {
-      httpOnly: true,
-      secure: true,
-      sameSite: 'Lax',
-      path: '/',
-      maxAge: 60 * 60 * 24 * 7, // 7 天
-    });
+    // 4. 生成自有 JWT（有效期 7 天）
+    const sessionToken = await signJwt(
+      { sub: user.id, email },
+      c.env.JWT_SECRET
+    );
 
     // 5. 返回给前端
     return c.redirect(
-      `${FRONTEND_URL}/auth-callback?token=${id_token}&email=${encodeURIComponent(email)}&name=${encodeURIComponent(name || '')}&picture=${encodeURIComponent(picture || '')}`
+      `${FRONTEND_URL}/auth-callback?token=${sessionToken}&email=${encodeURIComponent(email)}&name=${encodeURIComponent(name || '')}&picture=${encodeURIComponent(picture || '')}`
     );
   } catch (err) {
     console.error('OAuth callback error:', err);
@@ -160,27 +146,17 @@ authRouter.post('/verify', async (c) => {
   }
 
   try {
-    // 验证 Google id_token
-    const verifyResponse = await fetch('https://oauth2.googleapis.com/tokeninfo', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: new URLSearchParams({ id_token }),
-    });
+    const payload = await verifyJwt(id_token, c.env.JWT_SECRET);
 
-    if (!verifyResponse.ok) {
+    if (!payload) {
       throw new Error('Invalid token');
     }
-
-    const tokenInfo: TokenInfo = await verifyResponse.json();
 
     return c.json({
       success: true,
       data: {
-        email: tokenInfo.email,
-        aud: tokenInfo.aud,
-        exp: tokenInfo.exp,
+        email: payload.email,
+        exp: payload.exp,
       },
     });
   } catch (err) {
@@ -196,28 +172,20 @@ authRouter.get('/me', async (c) => {
     return c.json({ success: false, error: '未登录' }, 401);
   }
 
-  const idToken = authHeader.slice(7);
+  const token = authHeader.slice(7);
 
   try {
-    const verifyResponse = await fetch('https://oauth2.googleapis.com/tokeninfo', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: new URLSearchParams({ id_token: idToken }),
-    });
+    const payload = await verifyJwt(token, c.env.JWT_SECRET);
 
-    if (!verifyResponse.ok) {
+    if (!payload) {
       throw new Error('Invalid token');
     }
-
-    const tokenInfo: TokenInfo = await verifyResponse.json();
 
     return c.json({
       success: true,
       data: {
-        email: tokenInfo.email,
-        user_id: tokenInfo.sub,
+        email: payload.email,
+        user_id: payload.sub,
       },
     });
   } catch (err) {

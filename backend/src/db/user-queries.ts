@@ -83,6 +83,17 @@ export async function getUserByGoogleId(
     .first<User>();
 }
 
+// 通过 ID 获取用户
+export async function getUserById(
+  db: D1Database,
+  userId: number
+): Promise<User | null> {
+  return await db
+    .prepare('SELECT * FROM users WHERE id = ?')
+    .bind(userId)
+    .first<User>();
+}
+
 // 获取用户订阅信息
 export async function getUserSubscription(
   db: D1Database,

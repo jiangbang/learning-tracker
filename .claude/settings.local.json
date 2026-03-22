@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx shadcn@latest init -d -y)",
+      "Bash(npm run:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npm install:*)",
+      "Bash(npm --version)",
+      "Bash(npm cache:*)",
+      "Bash(rm:*)",
+      "Bash(node -e \":*)",
+      "Bash(npm config:*)",
+      "Bash(./node_modules/.bin/tsc --noEmit)",
+      "Bash(node -e \"const ts = require\\(''typescript''\\); console.log\\(''ts version:'', ts.version\\)\")",
+      "WebFetch(domain:aipoju.com)",
+      "mcp__exa-web-search__web_search_exa",
+      "mcp__playwright__browser_navigate",
+      "mcp__playwright__browser_wait_for",
+      "mcp__playwright__browser_run_code",
+      "mcp__filesystem__read_text_file"
+    ]
+  }
+}

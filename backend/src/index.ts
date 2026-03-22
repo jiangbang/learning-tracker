@@ -10,7 +10,7 @@ import { usersRouter } from './routes/users';
 import { subscriptionRouter } from './routes/subscription';
 import { paymentRouter } from './routes/payment';
 
-const app = new Hono<{ Bindings: { DB: D1Database; GOOGLE_CLIENT_ID: string; GOOGLE_CLIENT_SECRET: string; AUTH_CALLBACK_URL: string; PAYPAL_CLIENT_ID: string; PAYPAL_CLIENT_SECRET: string } }>();
+const app = new Hono<{ Bindings: { DB: D1Database; GOOGLE_CLIENT_ID: string; GOOGLE_CLIENT_SECRET: string; AUTH_CALLBACK_URL: string; PAYPAL_CLIENT_ID: string; PAYPAL_CLIENT_SECRET: string; JWT_SECRET: string } }>();
 
 // CORS 中间件
 app.use('/*', cors());

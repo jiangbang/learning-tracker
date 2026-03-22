@@ -1,51 +1,19 @@
 // Goals 路由
 
 import { Hono } from 'hono';
-import { getCookie } from 'hono/cookie';
 import type { ApiResponse, CreateGoalRequest, UpdateGoalRequest } from '../types';
 import * as queries from '../db/queries';
 import * as userQueries from '../db/user-queries';
+import { authMiddleware } from '../middleware/auth';
 
-export const goalsRouter = new Hono<{ Bindings: { DB: D1Database } }>();
+export const goalsRouter = new Hono<{ Bindings: { DB: D1Database; JWT_SECRET: string }; Variables: { currentUser: { id: number; email: string } } }>();
 
-// 从请求中获取当前用户
-async function getCurrentUser(c: any): Promise<{ googleId: string; email: string; id: number } | null> {
-  const authHeader = c.req.header('Authorization');
-  let token = '';
-
-  if (authHeader?.startsWith('Bearer ')) {
-    token = authHeader.slice(7);
-  } else {
-    token = getCookie(c, 'id_token') || '';
-  }
-
-  if (!token) return null;
-
-  try {
-    const verifyResponse = await fetch('https://oauth2.googleapis.com/tokeninfo', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ id_token: token }),
-    });
-
-    if (!verifyResponse.ok) return null;
-
-    const tokenInfo = await verifyResponse.json();
-    const user = await userQueries.getUserByGoogleId(c.env.DB, tokenInfo.sub);
-    if (!user) return null;
-
-    return { googleId: tokenInfo.sub, email: tokenInfo.email, id: user.id };
-  } catch {
-    return null;
-  }
-}
+// 所有 goals 路由都需要认证
+goalsRouter.use('/*', authMiddleware);
 
 // GET /api/goals - 获取当前用户的所有目标
 goalsRouter.get('/', async (c) => {
-  const currentUser = await getCurrentUser(c);
-  if (!currentUser) {
-    return c.json<ApiResponse<never>>({ success: false, error: '未登录' }, 401);
-  }
+  const currentUser = c.get('currentUser');
 
   try {
     const goals = await queries.getGoalsByUserId(c.env.DB, currentUser.id);
@@ -57,10 +25,7 @@ goalsRouter.get('/', async (c) => {
 
 // POST /api/goals - 创建新目标
 goalsRouter.post('/', async (c) => {
-  const currentUser = await getCurrentUser(c);
-  if (!currentUser) {
-    return c.json<ApiResponse<never>>({ success: false, error: '未登录' }, 401);
-  }
+  const currentUser = c.get('currentUser');
 
   try {
     // 检查是否可以创建目标
@@ -91,10 +56,7 @@ goalsRouter.post('/', async (c) => {
 
 // GET /api/goals/:id - 获取目标详情
 goalsRouter.get('/:id', async (c) => {
-  const currentUser = await getCurrentUser(c);
-  if (!currentUser) {
-    return c.json<ApiResponse<never>>({ success: false, error: '未登录' }, 401);
-  }
+  const currentUser = c.get('currentUser');
 
   try {
     const id = parseInt(c.req.param('id'));
@@ -117,10 +79,7 @@ goalsRouter.get('/:id', async (c) => {
 
 // PUT /api/goals/:id - 更新目标
 goalsRouter.put('/:id', async (c) => {
-  const currentUser = await getCurrentUser(c);
-  if (!currentUser) {
-    return c.json<ApiResponse<never>>({ success: false, error: '未登录' }, 401);
-  }
+  const currentUser = c.get('currentUser');
 
   try {
     const id = parseInt(c.req.param('id'));
@@ -144,10 +103,7 @@ goalsRouter.put('/:id', async (c) => {
 
 // DELETE /api/goals/:id - 删除目标
 goalsRouter.delete('/:id', async (c) => {
-  const currentUser = await getCurrentUser(c);
-  if (!currentUser) {
-    return c.json<ApiResponse<never>>({ success: false, error: '未登录' }, 401);
-  }
+  const currentUser = c.get('currentUser');
 
   try {
     const id = parseInt(c.req.param('id'));

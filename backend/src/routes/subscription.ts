@@ -1,50 +1,18 @@
 // 订阅路由
 
 import { Hono } from 'hono';
-import { getCookie } from 'hono/cookie';
 import * as userQueries from '../db/user-queries';
+import { authMiddleware } from '../middleware/auth';
 
-export const subscriptionRouter = new Hono<{ Bindings: { DB: D1Database } }>();
+export const subscriptionRouter = new Hono<{ Bindings: { DB: D1Database; JWT_SECRET: string }; Variables: { currentUser: { id: number; email: string } } }>();
 
-async function getUserFromRequest(c: any): Promise<{ googleId: string; email: string } | null> {
-  const authHeader = c.req.header('Authorization');
-  let token = '';
-
-  if (authHeader?.startsWith('Bearer ')) {
-    token = authHeader.slice(7);
-  } else {
-    token = getCookie(c, 'id_token') || '';
-  }
-
-  if (!token) return null;
-
-  try {
-    const verifyResponse = await fetch('https://oauth2.googleapis.com/tokeninfo', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ id_token: token }),
-    });
-
-    if (!verifyResponse.ok) return null;
-
-    const tokenInfo = await verifyResponse.json();
-    return {
-      googleId: tokenInfo.sub,
-      email: tokenInfo.email,
-    };
-  } catch {
-    return null;
-  }
-}
+// 所有 subscription 路由都需要认证
+subscriptionRouter.use('/*', authMiddleware);
 
 // GET /api/subscription - 获取当前订阅状态
 subscriptionRouter.get('/', async (c) => {
-  const auth = await getUserFromRequest(c);
-  if (!auth) {
-    return c.json({ success: false, error: '未登录' }, 401);
-  }
-
-  const user = await userQueries.getUserByGoogleId(c.env.DB, auth.googleId);
+  const currentUser = c.get('currentUser');
+  const user = await userQueries.getUserById(c.env.DB, currentUser.id);
   if (!user) {
     return c.json({ success: false, error: '用户不存在' }, 404);
   }
@@ -65,19 +33,15 @@ subscriptionRouter.get('/', async (c) => {
       stripe_subscription_id: subscription?.stripe_subscription_id ?? null,
       expires_at: subscription?.expires_at ?? null,
       goals_count: goalsCount?.count ?? 0,
-      goals_limit: subscription?.plan === 'pro' ? -1 : 1, // -1 表示无限
+      goals_limit: subscription?.plan === 'pro' ? -1 : 1,
     },
   });
 });
 
 // GET /api/subscription/limits - 检查是否可以创建目标
 subscriptionRouter.get('/limits', async (c) => {
-  const auth = await getUserFromRequest(c);
-  if (!auth) {
-    return c.json({ success: false, error: '未登录' }, 401);
-  }
-
-  const user = await userQueries.getUserByGoogleId(c.env.DB, auth.googleId);
+  const currentUser = c.get('currentUser');
+  const user = await userQueries.getUserById(c.env.DB, currentUser.id);
   if (!user) {
     return c.json({ success: false, error: '用户不存在' }, 404);
   }

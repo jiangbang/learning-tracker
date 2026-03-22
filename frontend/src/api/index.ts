@@ -168,7 +168,7 @@ export async function getStreakData(goalId: number): Promise<StreakData> {
 }
 
 // Auth API
-export async function verifyToken(token: string): Promise<{ email: string; aud: string; exp: number }> {
+export async function verifyToken(token: string): Promise<{ email: string; exp: number }> {
   const response = await fetch(`${API_BASE}/auth/verify`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -177,7 +177,7 @@ export async function verifyToken(token: string): Promise<{ email: string; aud: 
   return handleResponse(response);
 }
 
-export async function getCurrentUser(token: string): Promise<{ email: string; user_id: string }> {
+export async function getCurrentUser(token: string): Promise<{ email: string; user_id: number }> {
   const response = await fetch(`${API_BASE}/auth/me`, {
     headers: {
       Authorization: `Bearer ${token}`,
