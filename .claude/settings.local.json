@@ -17,7 +17,15 @@
       "mcp__playwright__browser_navigate",
       "mcp__playwright__browser_wait_for",
       "mcp__playwright__browser_run_code",
-      "mcp__filesystem__read_text_file"
+      "mcp__filesystem__read_text_file",
+      "mcp__playwright__browser_install",
+      "mcp__playwright__browser_evaluate",
+      "mcp__playwright__browser_close",
+      "Bash(curl:*)",
+      "Bash(npx vite:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
     ]
   }
 }
