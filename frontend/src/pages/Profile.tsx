@@ -117,20 +117,18 @@ export default function Profile() {
     try {
       const res = await fetch('https://api.keeprecord.shop/api/payment/paypal/create', {
         method: 'POST',
-        headers: getAuthHeaders(),
+        headers: { ...getAuthHeaders(), 'Content-Type': 'application/json' },
       });
 
-      if (!res.ok) {
-        const data = await res.json();
+      const data = await res.json();
+
+      if (!data.success) {
         throw new Error(data.error || '创建订单失败');
       }
 
-      // 后端返回 302 重定向到 PayPal
-      const approvalUrl = res.url;
-      if (approvalUrl && approvalUrl.includes('paypal.com')) {
-        // 保存当前 URL 以便 PayPal 回调后能回来
-        sessionStorage.setItem('paypal_return_to', window.location.href);
-        window.location.href = approvalUrl;
+      // 跳转到 PayPal 批准页面
+      if (data.data?.approval_url) {
+        window.location.href = data.data.approval_url;
       } else {
         throw new Error('未收到 PayPal 链接');
       }

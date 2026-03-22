@@ -104,10 +104,13 @@ paymentRouter.post('/paypal/create', authMiddleware, async (c) => {
         .run();
     }
 
-    // 直接重定向到 PayPal 批准页面
-    const approvalUrl = order.links.find((link: any) => link.rel === 'approve')?.href;
+    // 返回 PayPal 批准链接（前端用 window.location.href 跳转）
+    const approvalUrl = (order as any).links?.find((link: any) => link.rel === 'approve')?.href;
     if (approvalUrl) {
-      return c.redirect(approvalUrl);
+      return c.json<ApiResponse<{ approval_url: string; order_id: string }>>({
+        success: true,
+        data: { approval_url: approvalUrl, order_id: (order as any).id },
+      });
     }
 
     return c.json<ApiResponse<never>>({ success: false, error: '未找到 PayPal 批准链接' }, 500);
