@@ -1,4 +1,4 @@
-// PayPal 支付路由（沙盒环境）
+// PayPal 支付路由（PayPal.cn 沙盒环境）
 
 import { Hono } from 'hono';
 import type { ApiResponse } from '../types';
@@ -15,7 +15,7 @@ export const paymentRouter = new Hono<{
   Variables: { currentUser: { id: number; email: string } };
 }>();
 
-// PayPal 沙盒环境
+// PayPal.cn 沙盒环境
 const PAYPAL_API = 'https://api-m.sandbox.paypal.com';
 const PLAN_PRICE = '0.01'; // Pro 月费（测试价格）
 

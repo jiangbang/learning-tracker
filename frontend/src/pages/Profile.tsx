@@ -261,7 +261,7 @@ export default function Profile() {
           )}
 
           <div className="mt-4 text-xs text-gray-400">
-            支付由 PayPal 沙盒环境提供 · 测试模式
+            支付由 PayPal 提供
           </div>
         </div>
 

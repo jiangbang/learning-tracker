@@ -151,15 +151,63 @@ export async function getUserStats(
     .bind(userId)
     .first<{ total: number }>();
 
-  // 获取当前连续打卡天数（所有目标的综合）
-  const streakResult = await db
+  // 获取当前连续打卡天数（基于 logs 表实时计算）
+  // 查询该用户所有目标下的打卡日期（去重），按日期倒序
+  const streakDays = await db
     .prepare(
-      `SELECT MAX(streak_days) as current_streak, MAX(longest_streak) as longest_streak 
-       FROM goals 
-       WHERE user_id = ?`
+      `SELECT DISTINCT l.date
+       FROM logs l
+       JOIN goals g ON l.goal_id = g.id
+       WHERE g.user_id = ?
+       ORDER BY l.date DESC`
     )
     .bind(userId)
-    .first<{ current_streak: number | null; longest_streak: number | null }>();
+    .all<{ date: string }>();
+
+  let currentStreak = 0;
+  let longestStreak = 0;
+
+  if (streakDays.results && streakDays.results.length > 0) {
+    const dates = streakDays.results.map((r) => r.date);
+    const today = new Date().toISOString().split('T')[0];
+
+    // 计算当前连胜：从今天或昨天开始往回数连续天数
+    let streak = 0;
+    const startDate = new Date(dates[0]);
+    const todayDate = new Date(today);
+    const diffDays = Math.floor((todayDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+
+    if (diffDays <= 1) {
+      // 最近一次打卡是今天或昨天，开始计算连胜
+      streak = 1;
+      for (let i = 1; i < dates.length; i++) {
+        const prev = new Date(dates[i - 1]);
+        const curr = new Date(dates[i]);
+        const diff = Math.floor((prev.getTime() - curr.getTime()) / (1000 * 60 * 60 * 24));
+        if (diff === 1) {
+          streak++;
+        } else {
+          break;
+        }
+      }
+    }
+    currentStreak = streak;
+
+    // 计算最长连胜
+    let tempStreak = 1;
+    longestStreak = 1;
+    for (let i = 1; i < dates.length; i++) {
+      const prev = new Date(dates[i - 1]);
+      const curr = new Date(dates[i]);
+      const diff = Math.floor((prev.getTime() - curr.getTime()) / (1000 * 60 * 60 * 24));
+      if (diff === 1) {
+        tempStreak++;
+        longestStreak = Math.max(longestStreak, tempStreak);
+      } else {
+        tempStreak = 1;
+      }
+    }
+  }
 
   // 获取订阅计划
   const subResult = await db
@@ -170,8 +218,8 @@ export async function getUserStats(
   return {
     total_goals: goalsResult?.count ?? 0,
     total_hours: hoursResult?.total ?? 0,
-    current_streak: streakResult?.current_streak ?? 0,
-    longest_streak: streakResult?.longest_streak ?? 0,
+    current_streak: currentStreak,
+    longest_streak: longestStreak,
     subscription_plan: subResult?.plan ?? 'free',
   };
 }
