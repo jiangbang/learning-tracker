@@ -128,6 +128,8 @@ paymentRouter.post('/paypal/capture', async (c) => {
     return c.json<ApiResponse<never>>({ success: false, error: '缺少 orderId' }, 400);
   }
 
+  console.log('[PayPal Capture] orderId:', orderId);
+
   // 通过 PayPal order ID 查找对应的用户
   const userResult = await c.env.DB
     .prepare('SELECT user_id FROM subscriptions WHERE paypal_order_id = ?')
@@ -135,14 +137,22 @@ paymentRouter.post('/paypal/capture', async (c) => {
     .first<{ user_id: number }>();
 
   if (!userResult) {
+    console.error('[PayPal Capture] 订单未找到, orderId:', orderId);
     return c.json<ApiResponse<never>>({ success: false, error: '订单未找到' }, 404);
   }
 
+  console.log('[PayPal Capture] 找到用户:', userResult.user_id);
+
   try {
+    console.log('[PayPal Capture] PAYPAL_CLIENT_ID 存在:', !!c.env.PAYPAL_CLIENT_ID);
+    console.log('[PayPal Capture] PAYPAL_CLIENT_SECRET 存在:', !!c.env.PAYPAL_CLIENT_SECRET);
+
     const accessToken = await getPayPalAccessToken(
       c.env.PAYPAL_CLIENT_ID,
       c.env.PAYPAL_CLIENT_SECRET
     );
+
+    console.log('[PayPal Capture] 获取 accessToken 成功');
 
     const captureResponse = await fetch(
       `${PAYPAL_API}/v2/checkout/orders/${orderId}/capture`,
@@ -157,8 +167,12 @@ paymentRouter.post('/paypal/capture', async (c) => {
 
     if (!captureResponse.ok) {
       const err = await captureResponse.text();
-      console.error('PayPal capture error:', err);
-      throw new Error('Failed to capture PayPal order');
+      console.error('[PayPal Capture] PayPal API 返回错误, status:', captureResponse.status, 'body:', err);
+      return c.json<ApiResponse<never>>({
+        success: false,
+        error: `PayPal 捕获失败: ${captureResponse.status}`,
+        data: err
+      } as any, 500);
     }
 
     const captureData = await captureResponse.json();
@@ -196,8 +210,11 @@ paymentRouter.post('/paypal/capture', async (c) => {
       },
     });
   } catch (err) {
-    console.error('PayPal capture error:', err);
-    return c.json<ApiResponse<never>>({ success: false, error: '捕获订单失败' }, 500);
+    console.error('[PayPal Capture] 异常:', err);
+    return c.json<ApiResponse<never>>({
+      success: false,
+      error: `捕获订单失败: ${err instanceof Error ? err.message : String(err)}`,
+    }, 500);
   }
 });
 
