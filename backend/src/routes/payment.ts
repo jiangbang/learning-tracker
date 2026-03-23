@@ -17,7 +17,7 @@ export const paymentRouter = new Hono<{
 
 // PayPal 沙盒环境
 const PAYPAL_API = 'https://api-m.sandbox.paypal.com';
-const PLAN_PRICE = '9.99'; // Pro 月费
+const PLAN_PRICE = '0.01'; // Pro 月费（测试价格）
 
 // 获取 PayPal Access Token
 async function getPayPalAccessToken(clientId: string, clientSecret: string): Promise<string> {
